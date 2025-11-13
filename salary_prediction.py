@@ -1,88 +1,60 @@
-# ============================
-# Salary Prediction using Linear Regression
-# ============================
-
-# Importing Libraries
+import os
 import pandas as pd
 import numpy as np
-import matplotlib.pyplot as plt
-import seaborn as sns
 from sklearn.model_selection import train_test_split
 from sklearn.linear_model import LinearRegression
+from sklearn.ensemble import RandomForestRegressor
 from sklearn.metrics import r2_score, mean_absolute_error, mean_squared_error
+import joblib
 
-# ============================
-# Step 1: Load Dataset
-# ============================
+def load_data():
+    path = os.path.join("data", "Salary.csv")
+    if os.path.exists(path):
+        df = pd.read_csv(path)
+    else:
+        df = pd.DataFrame({
+            'Experience': [1, 3, 5, 7, 9, 11, 13, 15],
+            'Education_Level': ['Bachelors', 'Masters', 'PhD', 'Bachelors', 'Masters', 'PhD', 'Masters', 'PhD'],
+            'Job_Role': ['Data Analyst', 'Data Scientist', 'ML Engineer', 'Software Engineer', 'Data Analyst', 'ML Engineer', 'Data Scientist', 'Software Engineer'],
+            'Location': ['Delhi', 'Bangalore', 'Pune', 'Hyderabad', 'Bangalore', 'Delhi', 'Pune', 'Hyderabad'],
+            'Salary': [45000, 80000, 125000, 100000, 75000, 130000, 120000, 110000]
+        })
+    return df
 
-# Sample dataset (you can upload a CSV from Kaggle with similar columns)
-data = {
-    'Experience': [1, 3, 5, 7, 9, 11, 13, 15, 17, 19],
-    'Education_Level': ['Bachelors', 'Masters', 'Masters', 'PhD', 'Bachelors', 'PhD', 'Masters', 'Bachelors', 'PhD', 'Masters'],
-    'Job_Role': ['Data Analyst', 'Data Scientist', 'Software Engineer', 'ML Engineer', 'Data Analyst', 
-                 'ML Engineer', 'Software Engineer', 'Data Scientist', 'ML Engineer', 'Data Analyst'],
-    'Location': ['Delhi', 'Bangalore', 'Pune', 'Hyderabad', 'Delhi', 'Pune', 'Bangalore', 'Hyderabad', 'Delhi', 'Bangalore'],
-    'Salary': [45000, 70000, 90000, 120000, 50000, 135000, 95000, 110000, 125000, 75000]
-}
+def preprocess(df):
+    df = df.dropna(subset=['Salary'])
+    cat_cols = df.select_dtypes(include=['object', 'category']).columns.tolist()
+    df_encoded = pd.get_dummies(df, columns=cat_cols, drop_first=True)
+    return df_encoded
 
-df = pd.DataFrame(data)
+def train_model(model_type='linear'):
+    df = load_data()
+    df_encoded = preprocess(df)
+    X = df_encoded.drop('Salary', axis=1)
+    y = df_encoded['Salary']
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
-# ============================
-# Step 2: Data Preprocessing
-# ============================
+    if model_type == 'linear':
+        model = LinearRegression()
+    else:
+        model = RandomForestRegressor(n_estimators=100, random_state=42)
 
-# Encode categorical columns
-df_encoded = pd.get_dummies(df, drop_first=True)
+    model.fit(X_train, y_train)
+    y_pred = model.predict(X_test)
 
-# Split features & target
-X = df_encoded.drop('Salary', axis=1)
-y = df_encoded['Salary']
+    metrics = {
+        'R2 Score': round(r2_score(y_test, y_pred), 3),
+        'MAE': round(mean_absolute_error(y_test, y_pred), 3),
+        'MSE': round(mean_squared_error(y_test, y_pred), 3)
+    }
 
-# Split into training & testing data
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+    os.makedirs("models", exist_ok=True)
+    joblib.dump({'model': model, 'columns': X.columns.tolist()}, os.path.join("models", "model.pkl"))
 
-# ============================
-# Step 3: Train Model
-# ============================
+    print("Model trained successfully and saved as models/model.pkl")
+    print("Performance Metrics:")
+    for k, v in metrics.items():
+        print(f"{k}: {v}")
 
-model = LinearRegression()
-model.fit(X_train, y_train)
-
-# ============================
-# Step 4: Evaluate Model
-# ============================
-
-y_pred = model.predict(X_test)
-
-print("Model Performance:")
-print("------------------")
-print("R2 Score:", r2_score(y_test, y_pred))
-print("Mean Absolute Error:", mean_absolute_error(y_test, y_pred))
-print("Mean Squared Error:", mean_squared_error(y_test, y_pred))
-
-# ============================
-# Step 5: Predict for a New Employee
-# ============================
-
-new_data = pd.DataFrame({
-    'Experience': [8],
-    'Education_Level': ['Masters'],
-    'Job_Role': ['Data Scientist'],
-    'Location': ['Bangalore']
-})
-
-new_data_encoded = pd.get_dummies(new_data)
-new_data_encoded = new_data_encoded.reindex(columns=X.columns, fill_value=0)
-
-pred_salary = model.predict(new_data_encoded)
-print("\nPredicted Salary for new employee:", int(pred_salary[0]))
-
-# ============================
-# Step 6: Visualization
-# ============================
-
-plt.scatter(y_test, y_pred, color='blue')
-plt.xlabel("Actual Salary")
-plt.ylabel("Predicted Salary")
-plt.title("Actual vs Predicted Salary (Linear Regression)")
-plt.show()
+if __name__ == "__main__":
+    train_model(model_type='linear')
